@@ -25,3 +25,10 @@ st_out.log
 
 # Claude 설정 제외
 .claude/
+
+# 1회용 스크립트 / 발표 결과물 (fork 대상 제외)
+build_deck.py
+build_flow.py
+seed_temp_report.py
+Pipeline_Flow_BW.pptx
+Troubleshooting_Methodology.pptx
