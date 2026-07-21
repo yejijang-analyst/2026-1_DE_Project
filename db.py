@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import json
 import pandas as pd
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -114,6 +115,37 @@ def load_interpretation(dataset: str) -> dict:
     except Exception:
         pass
     return {}
+
+
+def load_latent_proxies(dataset: str) -> dict:
+    """미리 생성해 저장한 잠재 구성개념별 proxy 제안을 읽는다.
+
+    데모(오프라인) 모드에서 Gemini API 없이도 Tab 4 proxy 카드를 채우기 위한
+    캐시 테이블 latent_proxy_suggestions 를 조회한다. 없으면 빈 dict.
+
+    Returns
+    -------
+    {"_source": "db", "_model": <str>, "by_construct": {construct: [proxy,...]}}
+        또는 저장본이 없으면 {}.
+    """
+    try:
+        conn = _conn(dataset)
+        df = pd.read_sql(
+            "SELECT * FROM latent_proxy_suggestions WHERE dataset = ?",
+            conn, params=(dataset,)
+        )
+        conn.close()
+        if df.empty:
+            return {}
+        row = df.iloc[0].to_dict()
+        by_construct = json.loads(row.get("by_construct") or "{}")
+        return {
+            "_source": "db",
+            "_model": row.get("model", ""),
+            "by_construct": by_construct,
+        }
+    except Exception:
+        return {}
 
 
 def get_all_vars(dataset: str) -> list:

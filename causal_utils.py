@@ -125,7 +125,7 @@ def find_adjustment_set(
 
 
 def identify_adjustment_set(
-    edges: pd.DataFrame, X: str, Y: str, observed: Set[str]
+    edges: pd.DataFrame, X: str, Y: str, observed: Set[str], lang: str = "ko"
 ) -> dict:
     """
     Backdoor 식별 — 조정 기준(adjustment criterion, Perković et al. 2018)에 따라
@@ -147,6 +147,9 @@ def identify_adjustment_set(
          latent_blockers, paths, message)
         status ∈ {"no_node","no_path","identifiable","latent_confounded","no_backdoor"}
     """
+    def _t(ko: str, en: str) -> str:
+        return en if lang == "en" else ko
+
     G = build_dag(edges)
 
     base = dict(adjustment_set=set(), confounders=set(), mediators=set(),
@@ -154,13 +157,16 @@ def identify_adjustment_set(
 
     if X not in G.nodes() or Y not in G.nodes():
         return {**base, "status": "no_node",
-                "message": f"'{X}' 또는 '{Y}'이(가) 인과 그래프에 존재하지 않습니다."}
+                "message": _t(f"'{X}' 또는 '{Y}'이(가) 인과 그래프에 존재하지 않습니다.",
+                              f"'{X}' or '{Y}' does not exist in the causal graph.")}
 
     causal_paths = list(nx.all_simple_paths(G, X, Y, cutoff=10))
     if not causal_paths:
         return {**base, "status": "no_path",
-                "message": f"'{X}' → '{Y}'로 향하는 인과 경로가 그래프에 없습니다. "
-                           "두 변수 사이에 방향성 있는 직·간접 경로가 필요합니다."}
+                "message": _t(f"'{X}' → '{Y}'로 향하는 인과 경로가 그래프에 없습니다. "
+                              "두 변수 사이에 방향성 있는 직·간접 경로가 필요합니다.",
+                              f"There is no causal path from '{X}' → '{Y}' in the graph. "
+                              "A directed direct or indirect path between the two variables is required.")}
 
     # 적정 인과경로 노드(cn): X→…→Y 경로 위 노드(X 제외) = 매개변수 + Y
     cn = set()
@@ -198,34 +204,49 @@ def identify_adjustment_set(
     common = dict(mediators=mediators, colliders=colliders, paths=causal_paths)
 
     if valid_obs:
-        adj_str = "、".join(sorted(Z_obs)) if Z_obs else "없음 (조정 불필요)"
-        med_str = "、".join(sorted(mediators)) if mediators else "없음"
-        msg = (
+        if Z_obs:
+            adj_str = "、".join(sorted(Z_obs))
+        else:
+            adj_str = _t("없음 (조정 불필요)", "None (no adjustment needed)")
+        med_str = "、".join(sorted(mediators)) if mediators else _t("없음", "None")
+        msg = _t(
             f"✅ **식별 가능** — '{X}'→'{Y}'의 순수 인과효과를 보려면 "
             f"**{adj_str}**을(를) 통제(balancing)하면 됩니다.\n\n"
             f"> 🚫 통제 금지(매개변수): {med_str}\n"
-            f"> 🚫 충돌부는 d-분리 검증으로 자동 제외되었습니다."
+            f"> 🚫 충돌부는 d-분리 검증으로 자동 제외되었습니다.",
+            f"✅ **Identifiable** — to see the pure causal effect of '{X}'→'{Y}', "
+            f"control (balance) for **{adj_str}**.\n\n"
+            f"> 🚫 Do not control (mediators): {med_str}\n"
+            f"> 🚫 Colliders were automatically excluded by d-separation checking."
         )
         return {**base, **common, "status": "identifiable",
                 "adjustment_set": Z_obs, "confounders": confounders, "message": msg}
 
     if valid_can:
         # 정준집합으론 차단되나 그 안에 미관측 잠재노드가 필요 → 관측만으론 불가
-        lat_str = "、".join(sorted(latent_in_can)) or "(미관측 공통원인)"
-        msg = (
+        lat_str = "、".join(sorted(latent_in_can)) or _t("(미관측 공통원인)", "(unobserved common cause)")
+        msg = _t(
             f"⚠️ **관측 변수만으로는 식별 불가** — backdoor 경로를 차단하려면 "
             f"미관측 잠재 구성개념 **{lat_str}**을(를) 통제해야 하지만 직접 측정되지 않습니다.\n\n"
             f"> 💜 해당 잠재요인의 proxy 변수를 추가 측정하거나 모형에 포함해야 "
-            f"'{X}'→'{Y}' 효과를 식별할 수 있습니다."
+            f"'{X}'→'{Y}' 효과를 식별할 수 있습니다.",
+            f"⚠️ **Not identifiable from observed variables alone** — to block the backdoor path, "
+            f"the unobserved latent construct **{lat_str}** must be controlled, but it is not directly measured.\n\n"
+            f"> 💜 You must additionally measure a proxy variable for that latent factor or include it in the model "
+            f"to identify the '{X}'→'{Y}' effect."
         )
         return {**base, **common, "status": "latent_confounded",
                 "adjustment_set": Z_obs, "confounders": confounders,
                 "latent_blockers": latent_in_can, "message": msg}
 
-    msg = (
+    msg = _t(
         f"❌ **유효한 backdoor 조정집합이 존재하지 않습니다** — 현재 그래프 구조에서는 "
         f"어떤 변수 집합으로도 '{X}'→'{Y}'의 모든 비인과 경로를 차단할 수 없습니다 "
-        f"(예: 미관측 교란 또는 M-구조). frontdoor·도구변수 등 다른 식별 전략이 필요합니다."
+        f"(예: 미관측 교란 또는 M-구조). frontdoor·도구변수 등 다른 식별 전략이 필요합니다.",
+        f"❌ **No valid backdoor adjustment set exists** — in the current graph structure, "
+        f"no set of variables can block all non-causal paths of '{X}'→'{Y}' "
+        f"(e.g. unobserved confounding or an M-structure). Another identification strategy such as "
+        f"frontdoor or instrumental variables is needed."
     )
     return {**base, **common, "status": "no_backdoor",
             "adjustment_set": Z_obs, "confounders": confounders, "message": msg}
