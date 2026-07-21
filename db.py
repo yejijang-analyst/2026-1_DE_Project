@@ -139,10 +139,13 @@ def load_latent_proxies(dataset: str) -> dict:
             return {}
         row = df.iloc[0].to_dict()
         by_construct = json.loads(row.get("by_construct") or "{}")
+        by_construct_en = json.loads(row.get("by_construct_en") or "{}") \
+            if row.get("by_construct_en") else {}
         return {
             "_source": "db",
             "_model": row.get("model", ""),
             "by_construct": by_construct,
+            "by_construct_en": by_construct_en,
         }
     except Exception:
         return {}

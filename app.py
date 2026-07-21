@@ -779,8 +779,12 @@ with tab2:
         created_at = active_interp.get("created_at", "")
         st.caption(f"🕐 {created_at}{src_badge}")
 
+        # 영어 토글 시 미리 번역해 둔 *_en 을 우선 사용, 없으면 원문(한국어)로 폴백
+        _en = st.session_state.get("lang", "ko") == "en"
+
         # Brief
-        brief = str(active_interp.get("brief", "")).replace("\n", "<br>")
+        brief_src = (active_interp.get("brief_en") if _en else "") or active_interp.get("brief", "")
+        brief = str(brief_src).replace("\n", "<br>")
         if brief:
             st.markdown(f"""
             <div class="card">
@@ -790,7 +794,8 @@ with tab2:
             """, unsafe_allow_html=True)
 
         # Rich
-        rich = str(active_interp.get("rich", "")).replace("\n", "<br>")
+        rich_src = (active_interp.get("rich_en") if _en else "") or active_interp.get("rich", "")
+        rich = str(rich_src).replace("\n", "<br>")
         if rich:
             st.markdown(f"""
             <div class="card">
@@ -1042,7 +1047,12 @@ with tab4:
                             with st.expander(t("🔎 RAW 응답 보기", "🔎 View RAW response")):
                                 st.code(raw)
 
-            by_construct = (proxy_cache or {}).get("by_construct", {})
+            # 영어 토글 시 미리 번역해 둔 proxy(by_construct_en) 우선, 없으면 원문(한국어)
+            _pc = proxy_cache or {}
+            if st.session_state.get("lang", "ko") == "en":
+                by_construct = _pc.get("by_construct_en") or _pc.get("by_construct", {})
+            else:
+                by_construct = _pc.get("by_construct", {})
 
             for construct in constructs:
                 rows_c = latent_edges[latent_edges["from_var"] == construct]
